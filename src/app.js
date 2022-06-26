@@ -9,10 +9,6 @@ dotenv.config();
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
 
-let now = dayjs();
-
-now.locale("pt-br");
-
 const loginSchema = joi.object({
   name: joi.string().required().min(1),
 });
@@ -56,7 +52,7 @@ app.post("/participants", async (req, res) => {
       to: "Todos",
       text: "entra na sala...",
       type: "status",
-      time: now.format("HH:mm:ss"),
+      time: dayjs().format("HH:mm:ss"),
     });
     res.sendStatus(201);
   } catch (err) {
@@ -93,7 +89,7 @@ app.post("/messages", async (req, res) => {
     const message = {
       ...req.body,
       from: req.headers.from,
-      time: now.format("HH:mm:ss"),
+      time: dayjs().format("HH:mm:ss"),
     };
     await db.collection("messages").insertOne(message);
     res.sendStatus(201);
@@ -102,7 +98,35 @@ app.post("/messages", async (req, res) => {
   }
 });
 
+app.get("/messages", async (req, res) => {
+  try {
+    const limit = req.query.limit;
+    const { user } = req.headers;
+    const allMessages = await db.collection("messages").find().toArray();
+    const userMessages = allMessages.filter((message) => {
+      if (
+        message.type === "private_message" &&
+        message.from !== user &&
+        message.to !== user
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (!limit) {
+      res.send(userMessages);
+      return;
+    } else {
+      const lastMessages = [...userMessages].slice(-limit);
+      res.send(lastMessages);
+    }
+  } catch (err) {
+    res.status(500).send("Ops, ocorreu algum problema!");
+  }
+});
+
 app.listen(5000, () => {
   console.log("servidor rodando na porta 5000");
-  console.log(now.format("HH:mm:ss"));
+  console.log(dayjs().format("HH:mm:ss"));
 });
