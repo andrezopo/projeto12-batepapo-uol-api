@@ -14,7 +14,13 @@ let now = dayjs();
 now.locale("pt-br");
 
 const loginSchema = joi.object({
-  name: joi.string().required(),
+  name: joi.string().required().min(1),
+});
+
+const messageBodySchema = joi.object({
+  to: joi.string().required().min(1),
+  text: joi.string().required().min(1),
+  type: joi.string().valid("message", "private_message"),
 });
 
 let db;
@@ -53,7 +59,7 @@ app.post("/participants", async (req, res) => {
       time: now.format("HH:mm:ss"),
     });
     res.sendStatus(201);
-  } catch (error) {
+  } catch (err) {
     res.status(500).send("Ops, ocorreu algum problema!");
   }
 });
@@ -62,7 +68,36 @@ app.get("/participants", async (req, res) => {
   try {
     const participants = await db.collection("participants").find().toArray();
     res.status(200).send(participants.map((participant) => participant.name));
-  } catch (error) {
+  } catch (err) {
+    res.status(500).send("Ops, ocorreu algum problema!");
+  }
+});
+
+app.post("/messages", async (req, res) => {
+  const bodyValidation = messageBodySchema.validate(req.body);
+  const participantName = req.headers.from;
+  const isParticipant = await db
+    .collection("participants")
+    .findOne({ name: `${participantName}` });
+  if (!isParticipant) {
+    res.sendStatus(422);
+    return;
+  }
+
+  if (bodyValidation.error) {
+    res.sendStatus(422);
+    return;
+  }
+
+  try {
+    const message = {
+      ...req.body,
+      from: req.headers.from,
+      time: now.format("HH:mm:ss"),
+    };
+    await db.collection("messages").insertOne(message);
+    res.sendStatus(201);
+  } catch (err) {
     res.status(500).send("Ops, ocorreu algum problema!");
   }
 });
