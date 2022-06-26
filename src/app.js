@@ -58,6 +58,15 @@ app.post("/participants", async (req, res) => {
   }
 });
 
+app.get("/participants", async (req, res) => {
+  try {
+    const participants = await db.collection("participants").find().toArray();
+    res.status(200).send(participants.map((participant) => participant.name));
+  } catch (error) {
+    res.status(500).send("Ops, ocorreu algum problema!");
+  }
+});
+
 app.listen(5000, () => {
   console.log("servidor rodando na porta 5000");
   console.log(now.format("HH:mm:ss"));
