@@ -177,6 +177,50 @@ app.delete("/messages/:messageId", async (req, res) => {
   }
 });
 
+app.put("/messages/:messageId", async (req, res) => {
+  const bodyValidation = messageBodySchema.validate(req.body);
+  const { user } = req.headers;
+  const isParticipant = await db
+    .collection("participants")
+    .findOne({ name: `${user}` });
+  if (!isParticipant) {
+    res.sendStatus(422);
+    return;
+  }
+
+  if (bodyValidation.error) {
+    res.sendStatus(422);
+    return;
+  }
+
+  try {
+    const { user } = req.headers;
+    const { messageId } = req.params;
+    const messageToUpdate = await db
+      .collection("messages")
+      .findOne({ _id: ObjectId(messageId) });
+    if (!messageToUpdate) {
+      res.sendStatus(404);
+      return;
+    }
+    if (messageToUpdate.from !== user) {
+      res.sendStatus(401);
+      return;
+    }
+    const message = {
+      ...req.body,
+      from: user,
+      time: dayjs().format("HH:mm:ss"),
+    };
+    await db
+      .collection("messages")
+      .updateOne({ _id: ObjectId(messageId) }, { $set: message });
+    res.sendStatus(201);
+  } catch (err) {
+    res.status(500).send("Ops, ocorreu algum problema!");
+  }
+});
+
 async function removeInactiveParticipants() {
   const time = Date.now();
   const participants = await db.collection("participants").find().toArray();
