@@ -150,7 +150,31 @@ app.post("/status", async (req, res) => {
       }
     );
     res.sendStatus(200);
-  } catch (error) {}
+  } catch (err) {
+    res.status(500).send("Ops, ocorreu algum problema!");
+  }
+});
+
+app.delete("/messages/:messageId", async (req, res) => {
+  try {
+    const { user } = req.headers;
+    const { messageId } = req.params;
+    const messageToDelete = await db
+      .collection("messages")
+      .findOne({ _id: ObjectId(messageId) });
+    if (!messageToDelete) {
+      res.sendStatus(404);
+      return;
+    }
+    if (messageToDelete.from !== user) {
+      res.sendStatus(401);
+      return;
+    }
+    await db.collection("messages").deleteOne({ _id: ObjectId(messageId) });
+    res.status(200).send();
+  } catch (err) {
+    res.status(500).send("Ops, ocorreu algum problema!");
+  }
 });
 
 async function removeInactiveParticipants() {
