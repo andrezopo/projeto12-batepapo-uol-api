@@ -63,7 +63,11 @@ app.post("/participants", async (req, res) => {
 app.get("/participants", async (req, res) => {
   try {
     const participants = await db.collection("participants").find().toArray();
-    res.status(200).send(participants.map((participant) => participant.name));
+    res.status(200).send(
+      participants.map((participant) => {
+        return { name: participant.name };
+      })
+    );
   } catch (err) {
     res.status(500).send("Ops, ocorreu algum problema!");
   }
@@ -71,7 +75,7 @@ app.get("/participants", async (req, res) => {
 
 app.post("/messages", async (req, res) => {
   const bodyValidation = messageBodySchema.validate(req.body);
-  const participantName = req.headers.from;
+  const participantName = req.headers.user;
   const isParticipant = await db
     .collection("participants")
     .findOne({ name: `${participantName}` });
@@ -88,7 +92,7 @@ app.post("/messages", async (req, res) => {
   try {
     const message = {
       ...req.body,
-      from: req.headers.from,
+      from: req.headers.user,
       time: dayjs().format("HH:mm:ss"),
     };
     await db.collection("messages").insertOne(message);
@@ -125,6 +129,53 @@ app.get("/messages", async (req, res) => {
     res.status(500).send("Ops, ocorreu algum problema!");
   }
 });
+
+app.post("/status", async (req, res) => {
+  try {
+    const { user } = req.headers;
+    const participant = await db
+      .collection("participants")
+      .findOne({ name: user });
+    if (!participant) {
+      res.sendStatus(404);
+      return;
+    }
+    await db.collection("participants").updateOne(
+      { name: user },
+      {
+        $set: {
+          name: user,
+          lastStatus: Date.now(),
+        },
+      }
+    );
+    res.sendStatus(200);
+  } catch (error) {}
+});
+
+async function removeInactiveParticipants() {
+  const time = Date.now();
+  const participants = await db.collection("participants").find().toArray();
+  const participantsToRemove = participants.filter((participant) => {
+    if (time - participant.lastStatus > 10000) {
+      return true;
+    } else {
+      return false;
+    }
+  });
+  participantsToRemove.forEach((participant) => {
+    db.collection("participants").deleteOne({ name: participant.name });
+    db.collection("messages").insertOne({
+      from: participant.name,
+      to: "Todos",
+      text: "sai da sala...",
+      type: "status",
+      time: dayjs().format("HH:mm:ss"),
+    });
+  });
+}
+
+setInterval(removeInactiveParticipants, 15000);
 
 app.listen(5000, () => {
   console.log("servidor rodando na porta 5000");
